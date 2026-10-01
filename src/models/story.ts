@@ -13,7 +13,6 @@ export interface StoryScene {
   order: number;
   summary: string;
   conflict: string;
-  characterIds: string[];
   clueIds: string[];
 }
 
@@ -24,6 +23,12 @@ export interface StoryClue {
   payoffSceneId: string;
 }
 
+/** 人物与场景之间的出场关系：一个人物在一幕里出场，就是一行记录，两个视图共享同一份数据 */
+export interface CharacterAppearance {
+  characterId: string;
+  sceneId: string;
+}
+
 export interface StoryDocument {
   version: 1;
   id: string;
@@ -32,6 +37,7 @@ export interface StoryDocument {
   characters: StoryCharacter[];
   scenes: StoryScene[];
   clues: StoryClue[];
+  appearances: CharacterAppearance[];
   selectedSceneId: string;
   updatedAt: string;
 }
@@ -70,7 +76,6 @@ export function createStarterStory(): StoryDocument {
         order: 1,
         summary: '米拉收到一封来自已故船长的信，潮汐表背面写着一个日期。',
         conflict: '她必须决定是否相信一封不可能寄出的信。',
-        characterIds: [miraId],
         clueIds: [firstLetterId],
       },
       {
@@ -79,7 +84,6 @@ export function createStarterStory(): StoryDocument {
         order: 2,
         summary: '裘恩抵达灯塔，带来一枚从沉船上找到的铜制罗盘。',
         conflict: '两人对罗盘的来历各执一词。',
-        characterIds: [miraId, 'character-june'],
         clueIds: [],
       },
     ],
@@ -90,6 +94,11 @@ export function createStarterStory(): StoryDocument {
         setupSceneId: oldHarborId,
         payoffSceneId: '',
       },
+    ],
+    appearances: [
+      { characterId: miraId, sceneId: oldHarborId },
+      { characterId: miraId, sceneId: 'scene-storm' },
+      { characterId: 'character-june', sceneId: 'scene-storm' },
     ],
     selectedSceneId: oldHarborId,
     updatedAt: new Date().toISOString(),

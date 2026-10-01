@@ -7,7 +7,16 @@ import {
   type StoryDocument,
   type StoryScene,
 } from '../models/story';
-import { getStats, getTimelineWarning, orderedScenes, validateName } from '../models/storyRules';
+import {
+  charactersWithNoAppearance as charactersWithNoAppearanceRule,
+  getStats,
+  getTimelineWarning,
+  hasAppearance,
+  orderedScenes,
+  sceneIdsForCharacter as sceneIdsForCharacterRule,
+  setAppearance,
+  validateName,
+} from '../models/storyRules';
 import type { StoryRepository } from '../repositories/storyRepository';
 
 export type ViewModelStatus = 'loading' | 'ready' | 'editing' | 'error' | 'completed';
@@ -98,7 +107,6 @@ export class StoryViewModel {
       order: story.scenes.length + 1,
       summary: summary.trim() || '还没有写下这一幕发生了什么。',
       conflict: '',
-      characterIds: [],
       clueIds: [],
     };
     this.updateStory((current) => ({ ...current, scenes: [...current.scenes, scene], selectedSceneId: scene.id }));
@@ -112,15 +120,20 @@ export class StoryViewModel {
     }), false);
   }
 
+  /** 场景详情一侧：勾选 / 取消人物在这一幕出场 */
   toggleCharacter(sceneId: string, characterId: string): void {
-    this.updateStory((story) => ({
-      ...story,
-      scenes: story.scenes.map((scene) => {
-        if (scene.id !== sceneId) return scene;
-        const hasCharacter = scene.characterIds.includes(characterId);
-        return { ...scene, characterIds: hasCharacter ? scene.characterIds.filter((id) => id !== characterId) : [...scene.characterIds, characterId] };
-      }),
-    }));
+    const story = this.requireStory();
+    this.setCharacterAppearance(characterId, sceneId, !hasAppearance(story, characterId, sceneId));
+  }
+
+  /** 人物视图一侧：勾选 / 取消这个人物出现在某一幕 */
+  toggleCharacterScene(characterId: string, sceneId: string): void {
+    const story = this.requireStory();
+    this.setCharacterAppearance(characterId, sceneId, !hasAppearance(story, characterId, sceneId));
+  }
+
+  private setCharacterAppearance(characterId: string, sceneId: string, present: boolean): void {
+    this.updateStory((story) => setAppearance(story, characterId, sceneId, present));
   }
 
   moveScene(sceneId: string, direction: 'up' | 'down'): void {
@@ -173,6 +186,23 @@ export class StoryViewModel {
     const story = this.requireStory();
     const keyword = this.state.search.trim().toLowerCase();
     return orderedScenes(story).filter((scene) => `${scene.title}${scene.summary}${scene.conflict}`.toLowerCase().includes(keyword));
+  }
+
+  /** 人物视图里的场景勾选列表始终用完整时间线，不受搜索词影响 */
+  get orderedSceneList(): StoryScene[] {
+    return orderedScenes(this.requireStory());
+  }
+
+  sceneIdsForCharacter(characterId: string): string[] {
+    return sceneIdsForCharacterRule(this.requireStory(), characterId);
+  }
+
+  isCharacterInScene(characterId: string, sceneId: string): boolean {
+    return hasAppearance(this.requireStory(), characterId, sceneId);
+  }
+
+  get charactersWithNoAppearance(): StoryCharacter[] {
+    return charactersWithNoAppearanceRule(this.requireStory());
   }
 
   get selectedScene(): StoryScene | null {
