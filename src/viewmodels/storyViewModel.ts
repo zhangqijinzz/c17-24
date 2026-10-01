@@ -7,7 +7,7 @@ import {
   type StoryDocument,
   type StoryScene,
 } from '../models/story';
-import { getStats, getTimelineWarning, orderedScenes, validateName } from '../models/storyRules';
+import { characterAppearsInScene, getStats, getTimelineWarning, orderedScenes, sceneIdsForCharacter, setCharacterAppearance, validateName } from '../models/storyRules';
 import type { StoryRepository } from '../repositories/storyRepository';
 
 export type ViewModelStatus = 'loading' | 'ready' | 'editing' | 'error' | 'completed';
@@ -28,7 +28,7 @@ export class StoryViewModel {
   private state: StoryViewState = {
     status: 'loading',
     story: null,
-    stats: { characters: 0, scenes: 0, clues: 0, unresolvedClues: 0, completion: 0 },
+    stats: { characters: 0, scenes: 0, clues: 0, unresolvedClues: 0, uncastCharacters: 0, completion: 0 },
     notice: '',
     error: '',
     search: '',
@@ -98,7 +98,6 @@ export class StoryViewModel {
       order: story.scenes.length + 1,
       summary: summary.trim() || '还没有写下这一幕发生了什么。',
       conflict: '',
-      characterIds: [],
       clueIds: [],
     };
     this.updateStory((current) => ({ ...current, scenes: [...current.scenes, scene], selectedSceneId: scene.id }));
@@ -112,15 +111,21 @@ export class StoryViewModel {
     }), false);
   }
 
+  /**
+   * 建立或解除出场关系。场景详情和人物卡都走这一个入口，
+   * 写的是同一份 appearances 数据，任一侧的改动都会立刻反映到另一侧。
+   */
+  setAppearance(characterId: string, sceneId: string, appears: boolean): void {
+    const before = this.requireStory();
+    const after = setCharacterAppearance(before, characterId, sceneId, appears);
+    if (after === before) return;
+    this.updateStory(() => after, false);
+  }
+
+  /** 场景详情侧的勾选：按当前状态取反后委托给 setAppearance。 */
   toggleCharacter(sceneId: string, characterId: string): void {
-    this.updateStory((story) => ({
-      ...story,
-      scenes: story.scenes.map((scene) => {
-        if (scene.id !== sceneId) return scene;
-        const hasCharacter = scene.characterIds.includes(characterId);
-        return { ...scene, characterIds: hasCharacter ? scene.characterIds.filter((id) => id !== characterId) : [...scene.characterIds, characterId] };
-      }),
-    }));
+    const story = this.requireStory();
+    this.setAppearance(characterId, sceneId, !characterAppearsInScene(story, characterId, sceneId));
   }
 
   moveScene(sceneId: string, direction: 'up' | 'down'): void {
@@ -173,6 +178,21 @@ export class StoryViewModel {
     const story = this.requireStory();
     const keyword = this.state.search.trim().toLowerCase();
     return orderedScenes(story).filter((scene) => `${scene.title}${scene.summary}${scene.conflict}`.toLowerCase().includes(keyword));
+  }
+
+  /** 全部场景（按时间顺序），人物卡上的出场勾选需要完整列表，不受搜索过滤。 */
+  get allScenes(): StoryScene[] {
+    return orderedScenes(this.requireStory());
+  }
+
+  /** 某个人物当前出场的场景 id，按时间顺序。 */
+  appearingSceneIds(characterId: string): string[] {
+    return sceneIdsForCharacter(this.requireStory(), characterId);
+  }
+
+  /** 人物是否在指定场景出场，供两侧勾选框读取同一份状态。 */
+  appearsIn(characterId: string, sceneId: string): boolean {
+    return characterAppearsInScene(this.requireStory(), characterId, sceneId);
   }
 
   get selectedScene(): StoryScene | null {

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { StoryScene } from '../models/story';
+import { characterIdsInScene } from '../models/storyRules';
 import type { StoryViewModel } from '../viewmodels/storyViewModel';
 
 interface TimelineBoardProps { viewModel: StoryViewModel; scenes: StoryScene[]; }
@@ -16,7 +17,7 @@ export function TimelineBoard({ viewModel, scenes }: TimelineBoardProps) {
       <div className="timeline-rail">
         {scenes.map((scene, index) => {
           const selected = story?.selectedSceneId === scene.id;
-          const characterCount = story?.characters.filter((character) => scene.characterIds.includes(character.id)).length ?? 0;
+          const characterCount = story ? characterIdsInScene(story, scene.id).length : 0;
           return <button className={selected ? 'scene-node selected' : 'scene-node'} key={scene.id} onClick={() => viewModel.selectScene(scene.id)}><span className="scene-index">{String(index + 1).padStart(2, '0')}</span><span className="scene-line" /><span className="scene-dot" /><div className="scene-copy"><span className="scene-meta">SCENE {String(index + 1).padStart(2, '0')} · {characterCount} 位人物</span><strong>{scene.title}</strong><span>{scene.summary}</span><div className="scene-tags">{scene.conflict && <em>冲突</em>}{scene.clueIds.length > 0 && <em className="clue-tag">伏笔 {scene.clueIds.length}</em>}</div></div></button>;
         })}
         {scenes.length === 0 && <div className="empty-state">时间线还没有场景。创建第一幕，让故事开始移动。</div>}
